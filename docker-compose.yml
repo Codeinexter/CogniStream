@@ -1,0 +1,76 @@
+name: cognistream
+
+services:
+  redis:
+    # redis-stack-server is server-only and does NOT ship RedisInsight, so
+    # port 8001 had nothing listening behind it. redis-stack (no -server
+    # suffix) bundles both the Redis server and RedisInsight.
+    image: redis/redis-stack:latest
+    container_name: cognistream-redis
+    ports:
+      - "6379:6379"
+      - "8001:8001"
+    volumes:
+      - redis_data:/data
+      - redisinsight_data:/db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: cognistream-api
+    command: npm run dev
+    ports:
+      - "3000:3000"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PORT=3000
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: cognistream-worker
+    command: npm run worker
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build: 
+      context: ./cognistream-ui
+      dockerfile: Dockerfile
+    container_name: cognistream-ui
+    # Explicit long-running command so the container doesn't exit after a
+    # one-shot `npm run build` (see notes below) - and --host is required
+    # because Vite's dev server binds to 127.0.0.1 by default, which is
+    # unreachable from outside the container even with the port mapped.
+    command: npm run dev -- --host 0.0.0.0 --port 5173
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:3000/api/v1
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  redisinsight_data:
