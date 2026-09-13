@@ -1,3 +1,5 @@
+import { AskAI } from './components/AskAI';
+import { DocumentList } from './components/DocumentList';
 import { DocumentUploader } from './components/DocumentUploader';
 import { ProgressTracker } from './components/ProgressTracker';
 import { SemanticSearch } from './components/SemanticSearch';
@@ -26,6 +28,8 @@ export default function App() {
         <div className="space-y-6">
           <DocumentUploader />
           <ProgressTracker />
+          <DocumentList />
+          <AskAI />
           <SemanticSearch />
         </div>
       </div>

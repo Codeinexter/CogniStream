@@ -6,7 +6,10 @@ import { useToast } from '../hooks/use-toast';
 import { api } from '../lib/api';
 import { useJobStore } from '../store/useJobStore';
 
-const MAX_FILE_SIZE_MB = 10;
+// Kept in sync with cognistream/src/infrastructure/config.ts
+// (ingestion.maxFileSizeBytes) - the server is the source of truth here,
+// this is just a fast client-side check to avoid an unnecessary upload.
+const MAX_FILE_SIZE_MB = 20;
 
 export function DocumentUploader() {
   const [file, setFile] = useState<File | null>(null);
@@ -92,7 +95,7 @@ export function DocumentUploader() {
           Ingest Document
         </CardTitle>
         <CardDescription>
-          Upload text documents to split, vectorize, and store in Redis Stack.
+          Upload documents to split, vectorize, and store in Redis Stack.
         </CardDescription>
       </CardHeader>
       
@@ -112,7 +115,7 @@ export function DocumentUploader() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".txt,.md,.json,.csv"
+            accept=".txt,.md,.csv,.pdf,.docx"
             onChange={handleFileChange}
             className="hidden"
           />
@@ -127,7 +130,7 @@ export function DocumentUploader() {
               )}
             </div>
             <p className="text-xs text-slate-500">
-              Supports .txt, .md, .csv (Max {MAX_FILE_SIZE_MB}MB)
+              Supports .txt, .md, .csv, .pdf, .docx (Max {MAX_FILE_SIZE_MB}MB)
             </p>
           </div>
         </div>

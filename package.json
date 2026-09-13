@@ -24,15 +24,19 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
     "ioredis": "^6.0.0",
+    "mammoth": "^1.8.0",
     "multer": "^2.3.0",
-    "openai": "^7.12.1"
+    "openai": "^7.12.1",
+    "pdf-parse": "^1.1.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/multer": "^2.2.0",
     "@types/node": "^26.5.0",
+    "@types/pdf-parse": "^1.1.5",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2"
   }

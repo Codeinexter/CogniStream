@@ -10,6 +10,15 @@ export interface SearchResult {
   score: number;
 }
 
+/** Converts a RediSearch cosine distance into a bounded public similarity score. */
+export function distanceToSimilarity(distance: number): number {
+  if (!Number.isFinite(distance)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(1, 1 - distance));
+}
+
 /**
  * Embeds a plain-text query with the same model used at ingestion time,
  * then runs a K-Nearest-Neighbors search over the chunk_index HNSW field

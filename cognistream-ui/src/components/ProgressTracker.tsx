@@ -1,5 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, CheckCircle2, FileText, Loader2, X, XCircle } from 'lucide-react';
+import { useEffect } from 'react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Progress } from '../components/ui/progress';
@@ -8,6 +9,7 @@ import { useJobStore } from '../store/useJobStore';
 
 export function ProgressTracker() {
   const { jobId, clearJob } = useJobStore();
+  const queryClient = useQueryClient();
 
   const { data: job, isError, error } = useQuery({
     queryKey: ['jobStatus', jobId],
@@ -22,6 +24,15 @@ export function ProgressTracker() {
       return 1000;
     },
   });
+
+  // The moment a job finishes, the newly-ingested document becomes visible
+  // via GET /documents - refresh that list right away instead of leaving
+  // the user staring at a stale DocumentList until its own 5s poll fires.
+  useEffect(() => {
+    if (job?.state === 'completed') {
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    }
+  }, [job?.state, queryClient]);
 
   // Do not render anything if there is no active job in the global Zustand store
   if (!jobId) return null;
