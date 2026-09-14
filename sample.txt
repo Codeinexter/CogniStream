@@ -1,1 +1,0 @@
-CogniStream is an asynchronous document ingestion architecture built with Express, BullMQ, and Redis Stack.
