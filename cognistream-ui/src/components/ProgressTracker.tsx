@@ -1,21 +1,30 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, CheckCircle2, FileText, Loader2, X, XCircle } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Progress } from '../components/ui/progress';
 import { api } from '../lib/api';
 import { useJobStore } from '../store/useJobStore';
 
+// How long the completed/failed panel stays visible before auto-advancing
+// to the next queued job's progress bar.
+const TERMINAL_STATE_DISPLAY_MS = 2500;
+
 export function ProgressTracker() {
-  const { jobId, clearJob } = useJobStore();
+  const jobQueue = useJobStore((state) => state.jobQueue);
+  const removeJob = useJobStore((state) => state.removeJob);
+  const advanceQueue = useJobStore((state) => state.advanceQueue);
   const queryClient = useQueryClient();
+
+  // Always the OLDEST job in the queue - this is what keeps the first
+  // upload's progress bar visible while later uploads sit queued behind it.
+  const jobId = jobQueue[0] ?? null;
 
   const { data: job, isError, error } = useQuery({
     queryKey: ['jobStatus', jobId],
     queryFn: () => api.getJobStatus(jobId!),
     enabled: !!jobId,
-    // Poll every 1 second, but halt immediately if the job reaches a terminal state
     refetchInterval: (query) => {
       const state = query.state.data?.state;
       if (state === 'completed' || state === 'failed') {
@@ -25,25 +34,42 @@ export function ProgressTracker() {
     },
   });
 
-  // The moment a job finishes, the newly-ingested document becomes visible
-  // via GET /documents - refresh that list right away instead of leaving
-  // the user staring at a stale DocumentList until its own 5s poll fires.
   useEffect(() => {
     if (job?.state === 'completed') {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
     }
   }, [job?.state, queryClient]);
 
-  // Do not render anything if there is no active job in the global Zustand store
+  // Once the current job reaches a terminal state, briefly show the
+  // result, then pop it off the queue so the next queued job's progress
+  // bar takes over automatically.
+  const advanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!jobId || (job?.state !== 'completed' && job?.state !== 'failed')) {
+      return;
+    }
+    advanceTimeoutRef.current = setTimeout(() => advanceQueue(), TERMINAL_STATE_DISPLAY_MS);
+    return () => {
+      if (advanceTimeoutRef.current) clearTimeout(advanceTimeoutRef.current);
+    };
+  }, [jobId, job?.state, advanceQueue]);
+
   if (!jobId) return null;
+
+  const handleDismiss = () => {
+    if (advanceTimeoutRef.current) clearTimeout(advanceTimeoutRef.current);
+    removeJob(jobId);
+  };
+
+  const queuedBehind = jobQueue.length - 1;
 
   return (
     <Card className="w-full shadow-lg bg-slate-900/40 backdrop-blur-xl border-slate-800/60 relative overflow-hidden">
-      <Button 
-        variant="ghost" 
-        size="icon" 
+      <Button
+        variant="ghost"
+        size="icon"
         className="absolute top-3 right-3 text-slate-400 hover:text-slate-600"
-        onClick={clearJob}
+        onClick={handleDismiss}
       >
         <X className="w-4 h-4" />
       </Button>
@@ -55,11 +81,13 @@ export function ProgressTracker() {
         </CardTitle>
         <CardDescription>
           Tracking live worker progress for Job ID: <span className="font-mono text-xs">{jobId.slice(0, 8)}...</span>
+          {queuedBehind > 0 && (
+            <span className="ml-2 text-indigo-300">&middot; {queuedBehind} more queued</span>
+          )}
         </CardDescription>
       </CardHeader>
-      
+
       <CardContent className="space-y-6">
-        {/* Error State: UI gracefully handles HTTP 500s or TanStack query failures */}
         {isError && (
           <div className="flex items-center gap-3 p-4 bg-red-50 text-red-700 rounded-lg border border-red-200">
             <XCircle className="w-5 h-5 shrink-0" />
@@ -67,7 +95,6 @@ export function ProgressTracker() {
           </div>
         )}
 
-        {/* Processing State */}
         {job && job.state !== 'completed' && job.state !== 'failed' && (
           <div className="space-y-3">
             <div className="flex justify-between text-sm font-medium text-slate-300">
@@ -81,7 +108,6 @@ export function ProgressTracker() {
           </div>
         )}
 
-        {/* Success State */}
         {job?.state === 'completed' && (
           <div className="space-y-4">
             <div className="flex items-center gap-3 p-4 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-200">
@@ -91,8 +117,7 @@ export function ProgressTracker() {
                 <p className="text-xs opacity-90 mt-1">Ready for semantic retrieval.</p>
               </div>
             </div>
-            
-            {/* Displaying returning payload from BullMQ */}
+
             {job.result && (
               <div className="grid grid-cols-2 gap-4 pt-2">
                 <div className="bg-slate-50 p-3 rounded border border-slate-100">
@@ -113,7 +138,6 @@ export function ProgressTracker() {
           </div>
         )}
 
-        {/* Failed State */}
         {job?.state === 'failed' && (
           <div className="flex items-start gap-3 p-4 bg-red-50 text-red-800 rounded-lg border border-red-200">
             <XCircle className="w-5 h-5 shrink-0 mt-0.5" />

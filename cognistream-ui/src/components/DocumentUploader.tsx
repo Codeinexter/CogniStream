@@ -17,7 +17,7 @@ export function DocumentUploader() {
   const [isDragging, setIsDragging] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const setJobId = useJobStore((state) => state.setJobId);
+  const addJob = useJobStore((state) => state.addJob);
   const { toast } = useToast();
 
   // Validate file size and type before processing
@@ -66,7 +66,7 @@ export function DocumentUploader() {
       const response = await api.uploadDocument(file);
       
       // Store the active Job ID globally to trigger telemetry polling
-      setJobId(response.jobId);
+      addJob(response.jobId);
       setFile(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
