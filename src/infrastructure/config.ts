@@ -14,10 +14,17 @@ export const config = {
     port: parseInt(process.env.PORT || '3000', 10),
   },
   cors: {
-    // Was hardcoded in index.ts, which meant the Dockerized frontend
-    // (served from a different origin/port than local dev) had no way to
-    // override it. Defaults preserve the previous behavior for local dev.
     origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  },
+  auth: {
+    // Shared-secret auth via the `x-api-key` header. An empty string
+    // disables auth entirely (the local/dev default) - set API_KEY in any
+    // environment reachable outside your own machine.
+    apiKey: process.env.API_KEY || '',
+  },
+  rateLimit: {
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
+    max: parseInt(process.env.RATE_LIMIT_MAX || '60', 10),
   },
   redis: {
     host: process.env.REDIS_HOST || 'localhost',
@@ -25,6 +32,11 @@ export const config = {
   },
   gemini: {
     apiKey: process.env.GEMINI_API_KEY || '',
+    // Used only for RAG answer synthesis (embeddings use a separate,
+    // hardcoded model in gemini.ts). Generation model names/availability
+    // change more often than embedding models - verify this against
+    // Google's current model catalog before relying on the default.
+    generationModel: process.env.GEMINI_GENERATION_MODEL || 'gemini-3.6-flash',
   },
   queue: {
     name: 'document-ingestion',
@@ -48,10 +60,18 @@ export const config = {
     overlap: 50,
   },
   ingestion: {
-    // Only accept text-like payloads; anything else would be decoded as
-    // UTF-8 garbage and silently poison the embeddings.
-    allowedMimeTypes: ['text/plain', 'text/markdown', 'text/csv'],
-    maxFileSizeBytes: 10 * 1024 * 1024, // 10 MB
+    // Plain text formats are decoded directly; PDF/DOCX are routed through
+    // dedicated parsers in services/ingestion.ts (extractText). Anything
+    // else is rejected up front rather than silently decoded as UTF-8
+    // garbage.
+    allowedMimeTypes: [
+      'text/plain',
+      'text/markdown',
+      'text/csv',
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ],
+    maxFileSizeBytes: 20 * 1024 * 1024, // 20 MB - bumped from 10MB now that PDFs/DOCX are supported
   },
   search: {
     indexName: 'chunk_index',

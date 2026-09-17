@@ -1,6 +1,7 @@
 import { Job, Worker } from 'bullmq';
 import crypto from 'crypto';
 import { config } from '../infrastructure/config.js';
+import { saveDocumentMetadata } from '../infrastructure/documents.js';
 import { generateEmbedding } from '../infrastructure/gemini.js';
 import { redisClient } from '../infrastructure/redis.js';
 import { chunkDocument } from '../services/ingestion.js';
@@ -9,13 +10,14 @@ import { chunkDocument } from '../services/ingestion.js';
 interface IngestionJobData {
   filename: string;
   text: string;
+  mimeType: string;
 }
 
 // Instantiate the background worker bound to the 'document-ingestion' queue
 const worker = new Worker<IngestionJobData>(
   config.queue.name,
   async (job: Job<IngestionJobData>) => {
-    const { text, filename } = job.data;
+    const { text, filename, mimeType } = job.data;
 
     // Guard check to guarantee the text buffer is non-empty
     if (!text) {
@@ -51,6 +53,18 @@ const worker = new Worker<IngestionJobData>(
       const progress = 30 + Math.floor(((i + 1) / chunks.length) * 70);
       await job.updateProgress(progress);
     }
+
+    // 3. Register the document so it shows up in GET /documents. Done last,
+    // after every chunk is durably written, so a document never appears in
+    // the registry half-indexed.
+    const createdAt = new Date().toISOString();
+    await saveDocumentMetadata({
+      docId,
+      filename,
+      mimeType: mimeType || 'text/plain',
+      totalChunks: chunks.length,
+      createdAt,
+    });
 
     return { docId, totalChunks: chunks.length, filename };
   },
